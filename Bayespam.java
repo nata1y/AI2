@@ -50,9 +50,9 @@ public class Bayespam
         public void incrementCounter(MessageType type)
         {
             if ( type == MessageType.NORMAL ){
-                counter_regular ++;
+                ++counter_regular;
             } else {
-                counter_spam ++;
+                ++counter_spam;
             }
         }
     }
@@ -156,11 +156,20 @@ public class Bayespam
         }
     }
 
-    private static void readMessages()
+    private static void readMessages(File dir_location)
     throws IOException
     {
 
-        File[] files = new File[0];
+        File[] dir_listing = dir_location.listFiles();
+
+        // Check that there are 2 subdirectories
+        if ( dir_listing.length != 2 )
+        {
+            System.out.println( "- Error: specified directory does not contain two subdirectories.\n" );
+            Runtime.getRuntime().exit(0);
+        }
+
+        File[] files = dir_listing[0].listFiles();
         
         for (int i = 0; i < files.length; ++i)
         {
@@ -207,7 +216,7 @@ public class Bayespam
         double prior_reg_mes = listing_regular.length/(listing_regular.length + listing_spam.length);
         double prior_spam_mes = listing_spam.length/(listing_regular.length + listing_spam.length);
 
-        int den = 0;
+        double den = 0;
 
         /// calculate total number of words
         Set<String> keys = vocab.keySet();
@@ -231,16 +240,49 @@ public class Bayespam
             System.out.println( "- Error: cmd line arg not a directory.\n" );
             Runtime.getRuntime().exit(0);
         }
+        readMessages(dir_classify_location);
 
-        readMessages();
 
-       /* double overall_amount = listing_regular.length + listing_spam.length;
-        double current_p;
-        for(int i = 0; i < listing_regular.length; i++){
-            current_p = prior_reg_mes;
-            Probabilities thisWord = new Probabilities(Math.log((vocab.get(key).counter_spam)/den), Math.log((vocab.get(key).counter_regular)/den));
-            message_prob.put(key, thisWord);
+        /// print probs
+        /*
+        for(String key: keys){
+            System.out.println(key + "  " + word_prob.get(key).getCond_spam());
         }*/
+
+        /// Check print messages
+        /*
+        for(String i: messages){
+            System.out.println(i);
+        }*/
+
+        double overall_amount = listing_regular.length + listing_spam.length;
+        double current_p_r;
+        double current_p_s;
+        for(String mes: messages){
+            current_p_r = Math.log(prior_reg_mes);
+            current_p_s = Math.log(prior_spam_mes);
+            
+            StringTokenizer st = new StringTokenizer(mes);         // parse it into words
+        
+                /// clean volcabulary
+                while (st.hasMoreTokens())                  // while there are still words left..
+                {
+                	String instring = st.nextToken().toString().toLowerCase();
+                	if(instring.length() >= 4 && instring.matches("[a-z]+") && word_prob.containsKey(instring)) {
+                        ///HERE WE NEED TO SEARCH FOR PROBABILITIES
+                        current_p_r += Math.log(word_prob.get(instring).getCond_reg());
+                        current_p_s += Math.log(word_prob.get(instring).getCond_spam());
+                	}
+                }
+
+            Probabilities thisWord = new Probabilities(current_p_s, current_p_r);
+            message_prob.put(mes, thisWord);
+        }
+
+        keys = message_prob.keySet();
+        for(String key: keys){
+            System.out.println(message_prob.get(key).getCond_reg());
+        }
 
         
         // Now all students must continue from here:

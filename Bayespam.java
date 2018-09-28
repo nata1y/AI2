@@ -3,10 +3,41 @@ import java.util.*;
 
 public class Bayespam
 {
+
+    /// 2.2 epsilon 
+    final static float epsilon = 1;
+
     // This defines the two types of messages we have.
     static enum MessageType
     {
         NORMAL, SPAM
+    }
+
+    static class Probabilities
+    {
+        private double cond_spam = epsilon;
+        private double cond_reg = epsilon;
+
+        public Probabilities(double spam, double reg){
+            cond_spam = spam;
+            cond_reg = reg;
+        }
+
+        public double getCond_reg() {
+            return cond_reg;
+        }
+
+        public double getCond_spam() {
+            return cond_spam;
+        }
+
+        public void setCond_reg(double cond_reg) {
+            this.cond_reg = cond_reg;
+        }
+
+        public void setCond_spam(double cond_spam) {
+            this.cond_spam = cond_spam;
+        }
     }
 
     // This a class with two counters (for regular and for spam)
@@ -33,7 +64,11 @@ public class Bayespam
     // A hash table for the vocabulary (word searching is very fast in a hash table)
     private static Hashtable <String, Multiple_Counter> vocab = new Hashtable <String, Multiple_Counter> ();
 
-    
+    private static Hashtable <String, Probabilities> word_prob = new Hashtable <String, Probabilities> ();
+    private static Hashtable <String, Probabilities> message_prob = new Hashtable <String, Probabilities> ();
+
+    private static ArrayList<String> messages = new ArrayList<String>();
+
     // Add a word to the vocabulary
     private static void addWord(String word, MessageType type)
     {
@@ -107,11 +142,38 @@ public class Bayespam
             {
                 StringTokenizer st = new StringTokenizer(line);         // parse it into words
         
-                while (st.hasMoreTokens())                  // while there are stille words left..
+                /// clean volcabulary
+                while (st.hasMoreTokens())                  // while there are still words left..
                 {
-                    addWord(st.nextToken(), type);                  // add them to the vocabulary
+                	String instring = st.nextToken().toString().toLowerCase();
+                	if(instring.length() >= 4 && instring.matches("[a-z]+")) {
+                        addWord(instring, type);                  // add them to the vocabulary
+                	}
                 }
             }
+
+            in.close();
+        }
+    }
+
+    private static void readMessages()
+    throws IOException
+    {
+
+        File[] files = new File[0];
+        
+        for (int i = 0; i < files.length; ++i)
+        {
+            FileInputStream i_s = new FileInputStream( files[i] );
+            BufferedReader in = new BufferedReader(new InputStreamReader(i_s));
+            String line;
+            String message = "";
+            
+            while ((line = in.readLine()) != null)                      // read a line
+            {
+                message += line;
+            }
+            messages.add(message);
 
             in.close();
         }
@@ -141,22 +203,45 @@ public class Bayespam
         // Print out the hash table
         printVocab();
 
-        private static Hashtable <String, Multiple_Counter> vocab = new Hashtable <String, Multiple_Counter> ();
+        /// calculate priors
+        double prior_reg_mes = listing_regular.length/(listing_regular.length + listing_spam.length);
+        double prior_spam_mes = listing_spam.length/(listing_regular.length + listing_spam.length);
 
-        int num_spam = 0;
-        int num_reg = 0;
         int den = 0;
 
+        /// calculate total number of words
         Set<String> keys = vocab.keySet();
+
         for(String key: keys){
-            num_spam += vocab.get(key).counter_spam;
-            num_reg += vocab.get(key).counter_regular;
             den += (vocab.get(key).counter_spam + vocab.get(key).counter_regular);
         }
 
-        int priori_spam = num_spam/den;
-        int priori_reg =  num_reg/den;
+        for(String key: keys){
+            Probabilities thisWord = new Probabilities(Math.log((vocab.get(key).counter_spam)/den), Math.log((vocab.get(key).counter_regular)/den));
+            word_prob.put(key, thisWord);
+        }
+
+        ///classifying message 3.1
+
+        File dir_classify_location = new File( args[1] );
         
+        // Check if the cmd line arg is a directory
+        if ( !dir_classify_location.isDirectory() )
+        {
+            System.out.println( "- Error: cmd line arg not a directory.\n" );
+            Runtime.getRuntime().exit(0);
+        }
+
+        readMessages();
+
+       /* double overall_amount = listing_regular.length + listing_spam.length;
+        double current_p;
+        for(int i = 0; i < listing_regular.length; i++){
+            current_p = prior_reg_mes;
+            Probabilities thisWord = new Probabilities(Math.log((vocab.get(key).counter_spam)/den), Math.log((vocab.get(key).counter_regular)/den));
+            message_prob.put(key, thisWord);
+        }*/
+
         
         // Now all students must continue from here:
         //

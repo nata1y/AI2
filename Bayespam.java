@@ -156,20 +156,13 @@ public class Bayespam
         }
     }
 
+    /// is ised to read all messages one-by-one from a given directory to the array list if strings messages.
+    /// every entry in the array is a string representation of content of corresponding message file.
     private static void readMessages(File dir_location)
     throws IOException
     {
 
-        File[] dir_listing = dir_location.listFiles();
-
-        // Check that there are 2 subdirectories
-        if ( dir_listing.length != 2 )
-        {
-            System.out.println( "- Error: specified directory does not contain two subdirectories.\n" );
-            Runtime.getRuntime().exit(0);
-        }
-
-        File[] files = dir_listing[0].listFiles();
+        File[] files = dir_location.listFiles();
         
         for (int i = 0; i < files.length; ++i)
         {
@@ -182,6 +175,7 @@ public class Bayespam
             {
                 message += line;
             }
+            message += "\n";
             messages.add(message);
 
             in.close();
@@ -213,7 +207,6 @@ public class Bayespam
         printVocab();
 
         /// calculate priors
-
         double prior_reg_mes = (double)listing_regular.length/(double)(listing_regular.length + listing_spam.length);
         double prior_spam_mes = (double)listing_spam.length/(double)(listing_regular.length + listing_spam.length);
 
@@ -222,12 +215,21 @@ public class Bayespam
         /// calculate total number of words
         Set<String> keys = vocab.keySet();
 
+        /// calculate total word numbers for both - spam and regular
         for(String key: keys){
             den += (vocab.get(key).counter_spam + vocab.get(key).counter_regular);
         }
 
+        /// calculate probabilities for a particular word to be spam or to be regular
         for(String key: keys){
-            Probabilities thisWord = new Probabilities(Math.log((vocab.get(key).counter_spam)/den), Math.log((vocab.get(key).counter_regular)/den));
+            double num_spam = vocab.get(key).counter_spam;
+            double num_reg = vocab.get(key).counter_regular;
+            if(num_spam == 0){
+                num_spam = epsilon;
+            } else if (num_reg == 0){
+                num_reg = epsilon;
+            }
+            Probabilities thisWord = new Probabilities(Math.log(num_spam/den), Math.log(num_reg/den));
             word_prob.put(key, thisWord);
         }
 
@@ -251,41 +253,46 @@ public class Bayespam
         }*/
 
         /// Check print messages
-        /*
-        for(String i: messages){
+        
+        /*for(String i: messages){
             System.out.println(i);
         }*/
 
-        double overall_amount = listing_regular.length + listing_spam.length;
         double current_p_r;
         double current_p_s;
+
+        /// go through all given messages
         for(String mes: messages){
-            System.out.println(prior_reg_mes);
             current_p_r = Math.log(prior_reg_mes);
             current_p_s = Math.log(prior_spam_mes);
             
             StringTokenizer st = new StringTokenizer(mes);         // parse it into words
         
                 /// clean volcabulary
+                /// for every message go through every word and calculate probabilities
                 while (st.hasMoreTokens())                  // while there are still words left..
                 {
-                	String instring = st.nextToken().toString().toLowerCase();
+                    String instring = st.nextToken().toString().toLowerCase();
+
                 	if(instring.length() >= 4 && instring.matches("[a-z]+") && word_prob.containsKey(instring)) {
                         ///HERE WE NEED TO SEARCH FOR PROBABILITIES
-                        current_p_r += Math.log(word_prob.get(instring).getCond_reg());
-                        current_p_s += Math.log(word_prob.get(instring).getCond_spam());
+                        /// already logs!
+                        current_p_r += word_prob.get(instring).getCond_reg();
+                        current_p_s += word_prob.get(instring).getCond_spam();
                 	}
                 }
 
+            /// save probabilities
             Probabilities thisWord = new Probabilities(current_p_s, current_p_r);
             message_prob.put(mes, thisWord);
         }
 
+        /// print probabilities
+        
         keys = message_prob.keySet();
         for(String key: keys){
             System.out.println(message_prob.get(key).getCond_reg());
         }
-
         
         // Now all students must continue from here:
         //

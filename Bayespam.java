@@ -287,11 +287,16 @@ public class Bayespam
             message_prob.put(mes, thisWord);
         }
 
-        /// print probabilities
+        /// decide on message type
         
         keys = message_prob.keySet();
         for(String key: keys){
-            System.out.println(message_prob.get(key).getCond_reg());
+            if (message_prob.get(key).getCond_reg() > message_prob.get(key).getCond_spam()){
+                System.out.println("Regular");
+            } else {
+                System.out.println("Spam");
+            }
+            
         }
         
         // Now all students must continue from here:

@@ -213,8 +213,9 @@ public class Bayespam
         printVocab();
 
         /// calculate priors
-        double prior_reg_mes = listing_regular.length/(listing_regular.length + listing_spam.length);
-        double prior_spam_mes = listing_spam.length/(listing_regular.length + listing_spam.length);
+
+        double prior_reg_mes = (double)listing_regular.length/(double)(listing_regular.length + listing_spam.length);
+        double prior_spam_mes = (double)listing_spam.length/(double)(listing_regular.length + listing_spam.length);
 
         double den = 0;
 
@@ -259,6 +260,7 @@ public class Bayespam
         double current_p_r;
         double current_p_s;
         for(String mes: messages){
+            System.out.println(prior_reg_mes);
             current_p_r = Math.log(prior_reg_mes);
             current_p_s = Math.log(prior_spam_mes);
             

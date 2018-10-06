@@ -210,14 +210,18 @@ public class Bayespam
         double prior_reg_mes = (double)listing_regular.length/(double)(listing_regular.length + listing_spam.length);
         double prior_spam_mes = (double)listing_spam.length/(double)(listing_regular.length + listing_spam.length);
 
-        double den = 0;
+        double den_reg = 0;
+        double den_spam = 0;
+        double prob_reg = 0;
+        double prob_spam = 0;
 
         /// calculate total number of words
         Set<String> keys = vocab.keySet();
 
         /// calculate total word numbers for both - spam and regular
         for(String key: keys){
-            den += (vocab.get(key).counter_spam + vocab.get(key).counter_regular);
+            den_reg += vocab.get(key).counter_regular;
+            den_spam += vocab.get(key).counter_spam;
         }
 
         /// calculate probabilities for a particular word to be spam or to be regular
@@ -226,10 +230,17 @@ public class Bayespam
             double num_reg = vocab.get(key).counter_regular;
             if(num_spam == 0){
                 num_spam = epsilon;
-            } else if (num_reg == 0){
-                num_reg = epsilon;
+                prob_spam = Math.log(num_spam/(den_spam + den_reg));
+            } else {
+                prob_spam = Math.log(num_spam/den_spam);
             }
-            Probabilities thisWord = new Probabilities(Math.log(num_spam/den), Math.log(num_reg/den));
+            if (num_reg == 0){
+                num_reg = epsilon;
+                prob_reg = Math.log(num_reg/(den_spam + den_reg));
+            } else {
+                prob_reg = Math.log(num_reg/den_reg);
+            }
+            Probabilities thisWord = new Probabilities(prob_spam, prob_reg);
             word_prob.put(key, thisWord);
         }
 
@@ -288,16 +299,29 @@ public class Bayespam
         }
 
         /// decide on message type
-        
+        int am_reg_in_reg = 0;
+        int am_spam_in_reg = 0;
+        int am_reg_in_spam = 0;
+        int am_spam_in_spam = 0;
+
         keys = message_prob.keySet();
         for(String key: keys){
             if (message_prob.get(key).getCond_reg() > message_prob.get(key).getCond_spam()){
                 System.out.println("Regular");
+                am_reg_in_reg += 1;
             } else {
                 System.out.println("Spam");
+                am_spam_in_reg += 1;
             }
             
         }
+
+        System.out.println("Spam in given thingy= " + am_spam_in_reg);
+        System.out.println("Reg in given thingy= " + am_reg_in_reg);
+        System.out.println("Overall= " + (am_spam_in_reg + am_reg_in_reg));
+
+        /// computing performance of the test
+
         
         // Now all students must continue from here:
         //

@@ -1,7 +1,7 @@
 import java.io.*;
 import java.util.*;
 
-public class Bayespam
+public class BigramBayespam
 {
 
     /// 2.2 epsilon 
@@ -11,6 +11,46 @@ public class Bayespam
     static enum MessageType
     {
         NORMAL, SPAM
+    }
+
+    static class Pair 
+    {
+        private String word1;
+        private String word2;
+        private String key;
+
+        public Pair(String word1, String word2) {
+            this.word1 = word1;
+            this.word2 = word2;
+            this.key = word1+word2;
+        }
+
+        public void setWord1(String word1) {
+            this.word1 = word1;
+            this.key = word1+word2;
+
+        }
+
+        public void setWord2(String word2) {
+            this.word2 = word2;
+            this.key = word1+word2;
+        }
+
+        public String getWord1() {
+            return word1;
+        }
+
+        public String getWord2() {
+            return word2;
+        }
+
+        public String getKey() {
+            return key;
+        }
+
+        public String toString() {
+            return "(" + word1 + " - " + word2 + ")";
+        }
     }
 
     static class Probabilities
@@ -62,24 +102,25 @@ public class Bayespam
     private static File[] listing_spam = new File[0];
 
     // A hash table for the vocabulary (word searching is very fast in a hash table)
-    private static Hashtable <String, Multiple_Counter> vocab = new Hashtable <String, Multiple_Counter> ();
+    private static Hashtable <Pair, Multiple_Counter> bigrams = new Hashtable<Pair, Multiple_Counter>();
 
-    private static Hashtable <String, Probabilities> word_prob = new Hashtable <String, Probabilities> ();
+    private static Hashtable <Pair, Probabilities> bigram_prob = new Hashtable <Pair, Probabilities> ();
     private static Hashtable <String, Probabilities> message_prob = new Hashtable <String, Probabilities> ();
 
     private static ArrayList<String> messages = new ArrayList<String>();
 
-    // Add a word to the vocabulary
-    private static void addWord(String word, MessageType type)
-    {
+    private static void addPair(Pair pair, MessageType type) {
         Multiple_Counter counter = new Multiple_Counter();
 
-        if ( vocab.containsKey(word) ){                  // if word exists already in the vocabulary..
-            counter = vocab.get(word);                  // get the counter from the hashtable
+        for(Pair storedPair : bigrams.keySet()) {
+            if(storedPair.getWord1().equals(pair.getWord1()) && storedPair.getWord2().equals(pair.getWord2())) {
+                counter = bigrams.get(storedPair);
+                bigrams.remove(storedPair);
+                break;
+            }
         }
-        counter.incrementCounter(type);                 // increase the counter appropriately
-
-        vocab.put(word, counter);                       // put the word with its counter into the hashtable
+        counter.incrementCounter(type);
+        bigrams.put(pair, counter);
     }
 
 
@@ -95,29 +136,27 @@ public class Bayespam
             System.out.println( "- Error: specified directory does not contain two subdirectories.\n" );
             Runtime.getRuntime().exit(0);
         }
-
         listing_regular = dir_listing[0].listFiles();
         listing_spam    = dir_listing[1].listFiles();
     }
 
     
     // Print the current content of the vocabulary
-    private static void printVocab()
+    private static void printBigrams()
     {
         Multiple_Counter counter = new Multiple_Counter();
 
-        for (Enumeration<String> e = vocab.keys() ; e.hasMoreElements() ;)
+        for (Enumeration<Pair> e = bigrams.keys() ; e.hasMoreElements() ;)
         {   
-            String word;
+            Pair pair;
             
-            word = e.nextElement();
-            counter  = vocab.get(word);
+            pair = e.nextElement();
+            counter = bigrams.get(pair);
             
-            System.out.println( word + " | in regular: " + counter.counter_regular + 
+            System.out.println( pair.toString() + " | in regular: " + counter.counter_regular + 
                                 " in spam: "    + counter.counter_spam);
         }
     }
-
 
     // Read the words from messages and add them to your vocabulary. The boolean type determines whether the messages are regular or not  
     private static void readMessages(MessageType type)
@@ -136,32 +175,30 @@ public class Bayespam
             FileInputStream i_s = new FileInputStream( messages[i] );
             BufferedReader in = new BufferedReader(new InputStreamReader(i_s));
             String line;
-            String word;
-            
+            String prevWord = "";
             while ((line = in.readLine()) != null)                      // read a line
             {
                 StringTokenizer st = new StringTokenizer(line);         // parse it into words
-        
                 /// clean volcabulary
                 while (st.hasMoreTokens())                  // while there are still words left..
                 {
                 	String instring = st.nextToken().toString().toLowerCase();
-                	if(instring.length() >= 4 && instring.matches("[a-z]+")) {
-                        addWord(instring, type);                  // add them to the vocabulary
+                	if(instring.length()>4 && instring.matches("[a-z]+")) { // 
+                        //addWord(instring, type);                  // add them to the vocabulary
+                        if(prevWord!="") addPair(new Pair(prevWord.toLowerCase(), instring.toLowerCase()), type);
+                        prevWord = instring;
                 	}
                 }
             }
-
             in.close();
         }
     }
 
-    /// is ised to read all messages one-by-one from a given directory to the array list if strings messages.
-    /// every entry in the array is a string representation of content of corresponding message file.
+    /// Is used to read all messages one-by-one from a given directory to the array list if strings messages.
+    /// Every entry in the array is a string representation of content of corresponding message file.
     private static void readMessages(File dir_location)
     throws IOException
     {
-
         File[] files = dir_location.listFiles();
         
         for (int i = 0; i < files.length; ++i)
@@ -203,9 +240,6 @@ public class Bayespam
         readMessages(MessageType.NORMAL);
         readMessages(MessageType.SPAM);
 
-        // Print out the hash table
-        printVocab();
-
         /// calculate priors
         double prior_reg_mes = (double)listing_regular.length/(double)(listing_regular.length + listing_spam.length);
         double prior_spam_mes = (double)listing_spam.length/(double)(listing_regular.length + listing_spam.length);
@@ -216,34 +250,48 @@ public class Bayespam
         double prob_spam = 0;
 
         /// calculate total number of words
-        Set<String> keys = vocab.keySet();
+        Set<Pair> keys = bigrams.keySet();
 
         /// calculate total word numbers for both - spam and regular
-        for(String key: keys){
-            den_reg += vocab.get(key).counter_regular;
-            den_spam += vocab.get(key).counter_spam;
+        for(Pair key: keys){
+            den_reg += bigrams.get(key).counter_regular;
+            den_spam += bigrams.get(key).counter_spam;
         }
+
+        List<Pair> removeList = new ArrayList<Pair>();
 
         /// calculate probabilities for a particular word to be spam or to be regular
-        for(String key: keys){
-            double num_spam = vocab.get(key).counter_spam;
-            double num_reg = vocab.get(key).counter_regular;
-            if(num_spam == 0){
-                num_spam = epsilon;
-                prob_spam = Math.log(num_spam/(den_spam + den_reg));
-            } else {
-                prob_spam = Math.log(num_spam/den_spam);
+        for(Pair key: keys){
+            double num_spam = bigrams.get(key).counter_spam;
+            double num_reg = bigrams.get(key).counter_regular;
+            if(Math.abs(num_spam-num_reg)<5) {
+               removeList.add(key); 
             }
-            if (num_reg == 0){
-                num_reg = epsilon;
-                prob_reg = Math.log(num_reg/(den_spam + den_reg));
-            } else {
-                prob_reg = Math.log(num_reg/den_reg);
+            else {
+                if(num_spam == 0){
+                    num_spam = epsilon;
+                    prob_spam = Math.log(num_spam/(den_spam + den_reg));
+                } else {
+                    prob_spam = Math.log(num_spam/den_spam);
+                }
+                if (num_reg == 0){
+                    num_reg = epsilon;
+                    prob_reg = Math.log(num_reg/(den_spam + den_reg));
+                } else {
+                    prob_reg = Math.log(num_reg/den_reg);
+                }
+                Probabilities thisWord = new Probabilities(prob_spam, prob_reg);
+                bigram_prob.put(key, thisWord);
             }
-            Probabilities thisWord = new Probabilities(prob_spam, prob_reg);
-            word_prob.put(key, thisWord);
+            
+        }
+        while(removeList!=null && removeList.size()>0) {
+            bigrams.remove(removeList.get(0));
+            removeList.remove(0);
         }
 
+        // Print out the hash table
+        printBigrams();
         ///classifying message 3.1
 
         File dir_classify_location = new File( args[1] );
@@ -268,15 +316,26 @@ public class Bayespam
         
                 /// clean volcabulary
                 /// for every message go through every word and calculate probabilities
+                String prevWord = "";
                 while (st.hasMoreTokens())                  // while there are still words left..
                 {
                     String instring = st.nextToken().toString().toLowerCase();
-
-                	if(instring.length() >= 4 && instring.matches("[a-z]+") && word_prob.containsKey(instring)) {
+                	if(instring.length()>4 && instring.matches("[a-z]+")){  // 
+                        
+                        if(prevWord!="") {
+                            Pair pair = new Pair(prevWord.toLowerCase(), instring.toLowerCase());
+                            for(Pair storedPair : bigram_prob.keySet()) {
+                                
+                                if(pair.toString().equals(storedPair.toString())) {
+                                    
+                                    current_p_r += bigram_prob.get(storedPair).getCond_reg();
+                                    current_p_s += bigram_prob.get(storedPair).getCond_spam();
+                                }
+                            }
+                        }
+                        prevWord = instring;
                         ///HERE WE NEED TO SEARCH FOR PROBABILITIES
                         /// already logs!
-                        current_p_r += word_prob.get(instring).getCond_reg();
-                        current_p_s += word_prob.get(instring).getCond_spam();
                 	}
                 }
 
@@ -286,24 +345,23 @@ public class Bayespam
         }
 
         /// decide on message type
-        int am_reg = 0;
-        int am_spam = 0;
+        int am_reg_in_reg = 0;
+        int am_spam_in_reg = 0;
 
-        keys = message_prob.keySet();
-        for(String key: keys){
+        Set<String> messKeys = message_prob.keySet();
+        for(String key: messKeys){
             if (message_prob.get(key).getCond_reg() > message_prob.get(key).getCond_spam()){
                 System.out.println("Regular");
-                am_reg += 1;
+                am_reg_in_reg += 1;
             } else {
                 System.out.println("Spam");
-                am_spam += 1;
+                am_spam_in_reg += 1;
             }
-            
         }
 
-        System.out.println("Spam in given thingy= " + am_spam);
-        System.out.println("Reg in given thingy= " + am_reg);
-        System.out.println("Overall= " + (am_spam + am_reg));
+        System.out.println("Spam in given text= " + am_spam_in_reg);
+        System.out.println("Reg in given text= " + am_reg_in_reg);
+        System.out.println("Overall= " + (am_spam_in_reg + am_reg_in_reg));
 
         /// computing performance of the test
 

@@ -92,9 +92,12 @@ public class KMeans extends ClusteringAlgorithm
 		int[] correspondPrtotypes = new int[trainData.size()];
 
 		for(int i = 0; i < clusters.length; i ++){
-			clusters[i].previousMembers = clusters[i].currentMembers; 
+			clusters[i].previousMembers = new HashSet<Integer>();
+			Iterator iterator = clusters[i].currentMembers.iterator();
+			while(iterator.hasNext()){
+				clusters[i].previousMembers.add((Integer)iterator.next());
+			}
 			clusters[i].currentMembers = new HashSet<Integer>();
-			System.out.println(clusters[i].previousMembers);
 		}
 		/// finding corresponding cluster (prototype) for each data vector
 		/// reassigning datavectors to new clusters step 2
@@ -118,7 +121,7 @@ public class KMeans extends ClusteringAlgorithm
 						return true;
 					}
 				}
-				if (iterator2.hasNext()){
+				if (iterator2.hasNext() || iterator.hasNext()){
 					return true;
 				}
 		}
@@ -136,11 +139,6 @@ public class KMeans extends ClusteringAlgorithm
 		///Step 1
 		Collections.shuffle(trainData);
 		boolean condition = true;
-
-		clusters = new Cluster[k];
-		for(int i = 0; i < k; i++){
-			clusters[i] = new Cluster();
-		}
 
 		for(int n = 0; n < k; n++){
 			for(int i=(int)(n*trainData.size()/k); i<(int)((n+1)*trainData.size()/k); i++) {
@@ -173,6 +171,26 @@ public class KMeans extends ClusteringAlgorithm
 		// count number of hits
 		// count number of requests
 		// set the global variables hitrate and accuracy to their appropriate value
+		double requests = 0;
+		double hits = 0;
+		double prefetches = 0;
+		for(int i = 0; i < testData.size(); i++){
+			float[] client = testData.get(i);
+			int idx = findPrototype(client);
+			float[] prot = clusters[idx].prototype;
+			for(int j = 0; j < dim; j++){
+				if(prot[j] > prefetchThreshold){
+					prefetches++;
+				}
+				if(prot[j] > prefetchThreshold && client[j] == 1){
+					hits ++;
+				}
+				requests += client[j];
+			}
+
+		}
+		accuracy = hits/prefetches;
+		hitrate = hits/requests;
 		return true;
 	}
 
